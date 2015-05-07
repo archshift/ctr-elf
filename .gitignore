@@ -1,0 +1,7 @@
+workdir/*.elf
+workdir/*.ld
+workdir/*.bin
+workdir/*.o
+
+
+.DS_Store
