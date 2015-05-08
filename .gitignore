@@ -3,5 +3,6 @@ workdir/*.ld
 workdir/*.bin
 workdir/*.o
 
+__pycache__/*
 
 .DS_Store

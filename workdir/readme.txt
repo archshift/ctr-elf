@@ -1,1 +1,0 @@
-place exefs.bin, exh.bin, romfs.bin here

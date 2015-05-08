@@ -15,21 +15,20 @@ def writefile(path, s):
 	with open(path, "wb") as f:
 		f.write(str(s))
 
-
 with open("workdir/exh.bin", "rb") as f:
 	exh = f.read(64)
 
-(textBase, textPages, roPages, rwPages, bssSize) = struct.unpack('16xii4x4x4xi4x4x4xi4xi', exh)
+(textBase, textPages, roPages, rwPages, bssSize) = struct.unpack('16x ii 12x i 12x i 4x i', exh)
 textSize = textPages * 0x1000
 roSize   = roPages * 0x1000
 rwSize   = rwPages * 0x1000
 bssSize  = (int(bssSize / 0x1000) + 1) * 0x1000
 
-print("textBase: {:08x}\n".format(textBase) +
-	  "textSize: {:08x}\n".format(textSize) +
-	  "roSize:   {:08x}\n".format(roSize)   +
-	  "rwSize:   {:08x}\n".format(rwSize)   +
-	  "bssSize:  {:08x}\n".format(bssSize))
+print("textBase: {:08x}".format(textBase))
+print("textSize: {:08x}".format(textSize))
+print("roSize:   {:08x}".format(roSize))
+print("rwSize:   {:08x}".format(rwSize))
+print("bssSize:  {:08x}".format(bssSize))
 
 if (textBase != 0x100000):
 	print('WARNING: textBase mismatch, might be an encrypted exheader file.')
@@ -57,5 +56,4 @@ for i in (('text', 'text'), ('ro', 'rodata'), ('rw', 'data')):
         .format(OC, sec_name, exefsPath, desc))
 	objfiles += '{0}{1}.o '.format(exefsPath, desc)
 	
-print(objfiles)
 run(LD + ' --accept-unknown-input-arch -T workdir/e2elf.ld -o workdir/exefs.elf ' + objfiles)
