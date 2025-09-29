@@ -1,59 +1,111 @@
 # convert exefs to elf
-import sys
 import os
 import struct
+import subprocess  # this works better on python3 than os.system()
+import sys
 
 CC = "arm-none-eabi-gcc"
 CP = "arm-none-eabi-g++"
-OC = "arm-none-eabi-objcopy" 
+OC = "arm-none-eabi-objcopy"
 LD = "arm-none-eabi-ld"
-	
+
+
 def run(cmd):
-	os.system(cmd)
+    return subprocess.run(cmd, shell=True, check=True)
 
-def writefile(path, s):
-	with open(path, "wb") as f:
-		f.write(str(s))
 
-with open("workdir/exh.bin", "rb") as f:
-	exh = f.read(64)
+def writefile(path, data):
+    with open(path, "wb") as f:
+        # Python 3 fix n1: Python 3 uses bytes for binary data, while Python 2
+        #                  always uses strings. We must fix this behavior by
+        #                  ensuring we always use bytes/byte arrays.
+        if isinstance(data, str):
+            f.write(data.encode("utf-8"))
+        else:
+            f.write(data)
 
-(textBase, textPages, roPages, rwPages, bssSize) = struct.unpack('16x ii 12x i 12x i 4x i', exh)
-textSize = textPages * 0x1000
-roSize   = roPages * 0x1000
-rwSize   = rwPages * 0x1000
-bssSize  = (int(bssSize / 0x1000) + 1) * 0x1000
 
-print("textBase: {:08x}".format(textBase))
-print("textSize: {:08x}".format(textSize))
-print("roSize:   {:08x}".format(roSize))
-print("rwSize:   {:08x}".format(rwSize))
-print("bssSize:  {:08x}".format(bssSize))
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print(
+            f"USAGE: python exefs2elf.py [exefs directory] [exheader file] with"
+            + " [exefs directory] being the path of the exefs folder and"
+            + " [exheader file] the path of the exheader file, both without square brackets."
+        )
+        sys.exit()
 
-if (textBase != 0x100000):
-	print('WARNING: textBase mismatch, might be an encrypted exheader file.')
+    if not os.path.exists(sys.argv[1]) or not os.path.exists(sys.argv[2]):
+        print("ERROR: One or both of the paths given do not exist.")
+        sys.exit()
 
-exefsPath = 'workdir/exefs/'
-with open(exefsPath + 'code.bin', "rb") as f:
-	text = f.read(textSize)
-	ro = f.read(roSize)
-	rw = f.read(rwSize)
-	
-with open('e2elf.ld', 'r') as f:
-	ldscript = f.read()
-ldscript = ldscript.replace('%memorigin%', str(textBase))
-ldscript = ldscript.replace('%bsssize%', str(bssSize))
-writefile('workdir/e2elf.ld', ldscript)
+    exefs_directory = sys.argv[1]
+    exheader_file = sys.argv[2]
 
-writefile(exefsPath + 'text.bin', text)
-writefile(exefsPath + 'ro.bin', ro)
-writefile(exefsPath + 'rw.bin', rw)
+    with open(exheader_file, "rb") as f:
+        exh = f.read(64)
 
-objfiles = ''
-for i in (('text', 'text'), ('ro', 'rodata'), ('rw', 'data')):
-	desc, sec_name = i
-	run('{0} -I binary -O elf32-littlearm --rename-section .data=.{1} {2}{3}.bin {2}{3}.o'
-        .format(OC, sec_name, exefsPath, desc))
-	objfiles += '{0}{1}.o '.format(exefsPath, desc)
-	
-run(LD + ' --accept-unknown-input-arch -T workdir/e2elf.ld -o workdir/exefs.elf ' + objfiles)
+    (text_base, text_pages, ro_pages, rw_pages, bss_size) = struct.unpack(
+        "16x ii 12x i 12x i 4x i", exh
+    )
+    text_size = text_pages * 0x1000
+    ro_size = ro_pages * 0x1000
+    rw_size = rw_pages * 0x1000
+
+    # Python 3 fix n2: Python 2 does integer divisions between integers,
+    # 				   while Python 3 always does true divisions. We must
+    # 				   adapt to this behavior by using //.
+    bss_size = (int(bss_size // 0x1000) + 1) * 0x1000
+
+    print("textBase: {:08x}".format(text_base))
+    print("textSize: {:08x}".format(text_size))
+    print("roSize:   {:08x}".format(ro_size))
+    print("rwSize:   {:08x}".format(rw_size))
+    print("bssSize:  {:08x}".format(bss_size))
+
+    if text_base != 0x100000:
+        print("WARNING: textBase mismatch, might be an encrypted exheader file.")
+
+    code_bin_path = os.path.join(exefs_directory, "code.bin")
+    if not os.path.exists(code_bin_path):
+        print("ERROR: code.bin not present on the exefs directory.")
+        sys.exit()
+
+    with open(code_bin_path, "rb") as f:
+        text = f.read(text_size)
+        ro = f.read(ro_size)
+        rw = f.read(rw_size)
+
+    os.makedirs("output", exist_ok=True)
+
+    with open(os.path.join(".", "e2elf.ld"), "r") as f:
+        ld_script = f.read()
+    ld_script = ld_script.replace("%memorigin%", str(text_base))
+    ld_script = ld_script.replace("%bsssize%", str(bss_size))
+    writefile(os.path.join("output", "e2elf.ld"), ld_script)
+
+    writefile(os.path.join(exefs_directory, "text.bin"), text)
+    writefile(os.path.join(exefs_directory, "ro.bin"), ro)
+    writefile(os.path.join(exefs_directory, "rw.bin"), rw)
+
+    obj_files = ""
+    for i in (("text", "text"), ("ro", "rodata"), ("rw", "data")):
+        desc, sec_name = i
+        input_bin = os.path.join(exefs_directory, f"{desc}.bin")
+        output_obj = os.path.join(exefs_directory, f"{desc}.o")
+
+        run(
+            f"{OC} -I binary -O elf32-littlearm --rename-section .data=.{sec_name} {input_bin} {output_obj}"
+        )
+        obj_files += output_obj + " "
+
+    temp_ld_script_path = os.path.join("output", "e2elf.ld")
+    exefs_elf = os.path.join("output", "exefs.elf")
+    run(
+        LD
+        + f" --accept-unknown-input-arch -T {temp_ld_script_path} -o {exefs_elf} "
+        + obj_files
+    )
+
+    # cleanup temporary e2elf.ld file
+    if os.path.exists(temp_ld_script_path):
+        os.remove(temp_ld_script_path)

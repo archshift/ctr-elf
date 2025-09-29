@@ -1,10 +1,9 @@
-## ctr-elf
-#### Creates an ELF from a 3DS executable EXEFS
+## ctr-elf-python3
+#### Fork of [archshift's ctr-elf](https://github.com/archshift/ctr-elf) to work on Python 3, alongside some other changes to make it more in line with modern python standards and conventions.
 
-`ctr-elf.sh`: extract exefs from file and convert to elf.
-Simply run `ctr-elf.sh [path-to-file]`.
+Make sure to have the `arm-none-eabi-binutils` and `arm-none-eabi-gcc` dependencies installed before running!
 
-`exefs2elf.py`: convert exefs to elf file.
-Place the program's exheader (`exh.bin`) and exefs folder (`exefs/`) inside `workdir/` and run.
+Run with `python exefs2elf.py [exefs directory] [exheader file]` with `[exefs directory]` being the path of the exefs folder and `[exheader file]` the path of the exheader file, both without square brackets.
 
-#### Forked from [44670's patchrom](https://github.com/44670/patchrom)
+The output will be on `output/exefs.elf`.
+

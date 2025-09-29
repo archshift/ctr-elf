@@ -1,7 +1,9 @@
-workdir/*.elf
-workdir/*.ld
-workdir/*.bin
-workdir/*.o
+*.elf
+*.ld
+!e2elf.ld
+*.bin
+*.o
+*/
 
 __pycache__/*
 
